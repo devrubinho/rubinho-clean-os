@@ -24,3 +24,8 @@ logs/
 
 # User-specific logs (from logging.sh)
 ~/.rubinho/
+
+# IDE and tool configurations (should not be in version control)
+.cursor/
+.taskmaster/
+.mcp.json
