@@ -1,0 +1,179 @@
+{
+  "version": "2.0.0",
+  "tags": {
+    "master": {
+      "metadata": {
+        "name": "master",
+        "description": "Refatoração e melhorias do projeto rubinho-scripts",
+        "created": "2025-01-08T00:00:00.000Z"
+      },
+      "tasks": [
+        {
+          "id": 1,
+          "title": "Reorganizar Estrutura de Diretórios - Mover linux e macos para raiz",
+          "description": "Mover conteúdo de personal/linux e personal/macos para linux/ e macos/ na raiz do projeto. A pasta personal será removida e não existirá mais no projeto",
+          "status": "done",
+          "priority": "high",
+          "dependencies": [],
+          "details": "Reestruturar o projeto:\n- Mover personal/linux/* para linux/ na raiz\n- Mover personal/macos/* para macos/ na raiz\n- Remover pasta personal/ completamente (não existirá mais)\n- Atualizar todos os caminhos nos scripts que referenciam personal/\n- Atualizar documentação (readme.md, etc.) removendo referências a personal/\n- Atualizar .gitignore se necessário\n- Verificar e corrigir referências em run.sh e todos os scripts\n- Garantir que não haja mais nenhuma referência à pasta personal no projeto",
+          "testStrategy": "Verificar se todos os caminhos estão corretos após a movimentação, se os scripts ainda funcionam, e se não há mais referências à pasta personal em nenhum arquivo do projeto",
+          "subtasks": []
+        },
+        {
+          "id": 2,
+          "title": "Corrigir e Simplificar Script run.sh",
+          "description": "Refatorar run.sh para ter apenas 3 opções: instalar environment, clean_space e analyze_space. Remover seleção de ambiente (personal/work) e simplificar interface",
+          "status": "done",
+          "priority": "high",
+          "dependencies": [1],
+          "details": "Simplificar run.sh:\n- Remover seleção de ambiente (personal/work)\n- Detectar automaticamente a plataforma (Linux/macOS)\n- Oferecer apenas 3 opções:\n  1. Instalar environment (00-install-all.sh)\n  2. Analisar espaço em disco (analyze_space.sh)\n  3. Limpar espaço em disco (clean_space.sh)\n- Melhorar interface e mensagens\n- Adicionar validações",
+          "testStrategy": "Testar run.sh em Linux e macOS, verificar se todas as opções funcionam corretamente",
+          "subtasks": []
+        },
+        {
+          "id": 3,
+          "title": "Melhorar Documentação de Uso",
+          "description": "Criar documentação clara e completa sobre como usar o projeto, incluindo guias de instalação, uso dos scripts e troubleshooting",
+          "status": "done",
+          "priority": "high",
+          "dependencies": [1, 2],
+          "details": "Melhorar documentação:\n- Atualizar README.md principal com nova estrutura\n- Criar guia de uso detalhado\n- Documentar cada script e sua função\n- Adicionar exemplos de uso\n- Criar guia de troubleshooting\n- Adicionar FAQ\n- Melhorar formatação e organização",
+          "testStrategy": "Revisar documentação com usuário novo e verificar se está clara e completa",
+          "subtasks": []
+        },
+        {
+          "id": 4,
+          "title": "Melhorar arquivo .env.example",
+          "description": "Aprimorar .env.example com comentários explicativos, exemplos claros e documentação de cada variável",
+          "status": "done",
+          "priority": "medium",
+          "dependencies": [],
+          "details": "Melhorar .env.example:\n- Adicionar comentários explicativos para cada variável\n- Incluir exemplos de valores válidos\n- Documentar variáveis obrigatórias vs opcionais\n- Adicionar seções organizadas (Git, API Keys, etc.)\n- Incluir links para onde obter valores (ex: API keys)\n- Adicionar valores padrão quando aplicável",
+          "testStrategy": "Verificar se .env.example está claro e completo para novos usuários",
+          "subtasks": []
+        },
+        {
+          "id": 5,
+          "title": "Adicionar Configuração Task Master + Claude + Cursor nos Scripts",
+          "description": "Integrar configuração completa do Task Master, Claude e Cursor nos scripts de instalação, incluindo setup de MCP, chaves de API e configurações",
+          "status": "done",
+          "priority": "high",
+          "dependencies": [1],
+          "details": "Adicionar integração completa:\n- Incluir script de instalação do Task Master no fluxo principal\n- Configurar MCP (mcp.json) automaticamente\n- Adicionar prompts para obter chaves de API (Anthropic, Perplexity, etc.)\n- Configurar Cursor para usar Claude como modelo padrão\n- Integrar tudo no 00-install-all.sh\n- Criar script auxiliar de configuração se necessário\n- Adicionar validação de configuração após instalação",
+          "testStrategy": "Testar instalação completa e verificar se Task Master, Claude e Cursor estão configurados corretamente",
+          "subtasks": []
+        },
+        {
+          "id": 6,
+          "title": "Organizar Scripts de Environment - Apenas install-all e suporte",
+          "description": "Reorganizar scripts de environment para que apenas 00-install-all.sh seja executável diretamente, e os outros scripts sejam módulos de suporte chamados por ele",
+          "status": "done",
+          "priority": "high",
+          "dependencies": [1],
+          "details": "Reorganizar estrutura:\n- Manter 00-install-all.sh como único script principal\n- Renomear outros scripts para indicar que são módulos (ex: _01-configure-git.sh ou lib-configure-git.sh)\n- Ou mover para subpasta de módulos\n- Atualizar 00-install-all.sh para chamar módulos\n- Adicionar documentação sobre a estrutura\n- Garantir que módulos não sejam executáveis diretamente (remover permissão ou adicionar validação)",
+          "testStrategy": "Verificar se apenas 00-install-all.sh pode ser executado e se chama os módulos corretamente",
+          "subtasks": []
+        },
+        {
+          "id": 7,
+          "title": "Adicionar Verificação e Confirmação de Recursos Existentes",
+          "description": "Antes de executar cada script de environment, verificar se o recurso já está instalado e perguntar ao usuário se deseja reinstalar",
+          "status": "done",
+          "priority": "high",
+          "dependencies": [6],
+          "details": "Implementar verificação inteligente:\n- Criar função helper para verificar instalação de ferramentas\n- Antes de cada script, verificar se já está instalado\n- Mostrar versão atual se encontrada\n- Perguntar ao usuário: 'X já está instalado (versão Y). Deseja reinstalar? (s/N)'\n- Pular instalação se usuário escolher não\n- Adicionar opção --force para pular confirmações\n- Logar decisões do usuário",
+          "testStrategy": "Testar com ferramentas já instaladas e verificar se a lógica de confirmação funciona corretamente",
+          "subtasks": []
+        },
+        {
+          "id": 8,
+          "title": "Melhorar Script de Limpeza com Confirmações Detalhadas",
+          "description": "Modificar clean_space.sh para explicar o que será limpo e confirmar com o usuário em cada passo da limpeza, mostrando o que será removido antes de executar",
+          "status": "done",
+          "priority": "high",
+          "dependencies": [],
+          "details": "Melhorar clean_space.sh:\n- Antes de cada categoria de limpeza, mostrar:\n  - O que será limpo (ex: 'Docker: containers, images, volumes')\n  - Quantidade/tamanho aproximado\n  - Lista de itens que serão removidos\n- Pedir confirmação para cada categoria\n- Mostrar progresso durante limpeza\n- Exibir resumo do que foi limpo e espaço liberado\n- Adicionar modo dry-run para preview\n- Adicionar opção de salvar log da limpeza",
+          "testStrategy": "Testar clean_space.sh e verificar se todas as confirmações funcionam e se o usuário tem controle total sobre o que é limpo",
+          "subtasks": []
+        },
+        {
+          "id": 9,
+          "title": "Implementar Verificação de .env e Input Condicional",
+          "description": "Adicionar lógica nos scripts para verificar se existe arquivo .env quando necessário variável de ambiente. Se .env existir, usar valores do arquivo. Se não existir, pedir para o usuário digitar os valores",
+          "status": "done",
+          "priority": "high",
+          "dependencies": [6],
+          "details": "Implementar verificação inteligente de variáveis de ambiente:\n- Criar função helper que verifica se .env existe\n- Quando script precisar de variável de ambiente:\n  1. Verificar se .env existe e contém a variável\n  2. Se existir: usar valor do .env (não pedir input)\n  3. Se não existir: pedir para usuário digitar o valor\n  4. Opcionalmente salvar no .env para próximas execuções\n- Aplicar em todos os scripts que precisam de variáveis (Git, API keys, etc.)\n- Garantir que .env esteja no .gitignore\n- Adicionar validação de valores inseridos",
+          "testStrategy": "Testar scripts com .env existente e sem .env, verificar se a lógica funciona corretamente em ambos os casos",
+          "subtasks": []
+        },
+        {
+          "id": 10,
+          "title": "Implementar Menu Interativo no run.sh com Módulos de Instalação e Limpeza",
+          "description": "Modificar run.sh para perguntar ao usuário se deseja acessar módulo de instalação de ferramentas de dev ou módulo de limpeza. No módulo de instalação, rodar comando que instala tudo perguntando se deseja instalar cada coisa, avisando se já tiver instalado e perguntando se quer reinstalar",
+          "status": "done",
+          "priority": "high",
+          "dependencies": [2, 7],
+          "details": "Implementar menu interativo no run.sh:\n- Primeiro menu: escolher entre:\n  1. Módulo de Instalação de Ferramentas de Dev\n  2. Módulo de Limpeza (analyze_space.sh e clean_space.sh)\n- Se escolher Instalação:\n  - Rodar 00-install-all.sh ou equivalente\n  - Para cada ferramenta/script:\n    1. Verificar se já está instalado\n    2. Se estiver instalado: mostrar versão e perguntar 'X já está instalado (versão Y). Deseja reinstalar? (s/N)'\n    3. Se não estiver instalado: perguntar 'Deseja instalar X? (S/n)'\n    4. Só instalar se usuário confirmar\n  - Mostrar progresso e resumo do que foi instalado\n- Se escolher Limpeza:\n  - Mostrar opções: analyze_space.sh ou clean_space.sh\n  - Executar script escolhido\n- Melhorar interface com cores e formatação clara",
+          "testStrategy": "Testar run.sh escolhendo ambos os módulos, verificar se todas as confirmações funcionam corretamente e se a instalação só acontece quando usuário confirma",
+          "subtasks": []
+        },
+        {
+          "id": 11,
+          "title": "Adicionar Opção de Corrigir Usuário Linux no run.sh",
+          "description": "Adicionar no run.sh (especificamente para Linux) uma opção para executar o script fix_user.sh que corrige problemas de usuário que não consegue fazer login no sistema",
+          "status": "done",
+          "priority": "high",
+          "dependencies": [2],
+          "details": "Adicionar opção no run.sh para Linux:\n- Detectar se está rodando em Linux\n- Adicionar nova opção no menu (ex: opção 4) para 'Corrigir usuário Linux'\n- Mostrar descrição: 'Corrige problemas de usuário que não consegue fazer login'\n- Validar que o script fix_user.sh existe em linux/scripts/utils/\n- Executar o script com permissões apropriadas (pode precisar de sudo)\n- Adicionar confirmação antes de executar (explicar o que será feito)\n- Mostrar mensagem clara sobre quando usar esta opção\n- Garantir que a opção só apareça em Linux (não em macOS)",
+          "testStrategy": "Testar run.sh em Linux e verificar se a opção aparece corretamente, se a confirmação funciona e se o script fix_user.sh é executado corretamente",
+          "subtasks": []
+        },
+        {
+          "id": 12,
+          "title": "Scripts can be executed with a simplified interface to manage system resources",
+          "description": "Users can run a single entry point that automatically detects their platform and offers clear options to install tools, analyze disk space, or clean up unnecessary files.",
+          "status": "done",
+          "priority": "high",
+          "dependencies": [2, 7, 10],
+          "details": "Simplified interface implementation:\n- Single entry point (run.sh) for all operations\n- Automatic platform detection (Linux/macOS)\n- Clear menu options:\n  1. Installation Module (install/configure dev tools)\n  2. Cleanup Module (analyze/clean disk space)\n  3. Fix Linux User (Linux only - diagnose/fix login issues)\n- Per-tool confirmation during installation\n- Detailed preview and confirmation for cleanup operations\n- User-friendly interface with colors and clear formatting",
+          "testStrategy": "Test run.sh on both Linux and macOS, verify all menu options work correctly, test installation confirmations, and test cleanup previews",
+          "subtasks": []
+        },
+        {
+          "id": 13,
+          "title": "Documentation can be accessed to understand how to use the scripts and troubleshoot issues",
+          "description": "Users can find clear, comprehensive guides explaining how to install tools, use each script, and resolve common problems without needing to read source code.",
+          "status": "done",
+          "priority": "high",
+          "dependencies": [3],
+          "details": "Comprehensive documentation implementation:\n- Updated README.md with new structure\n- Detailed usage guide for run.sh\n- Complete script documentation with examples\n- Troubleshooting section with common issues and solutions\n- FAQ section covering:\n  - Installation questions\n  - Cleanup questions\n  - Environment variables\n  - Task Master setup\n- Platform-specific guides (Linux/macOS)\n- Clear formatting and organization",
+          "testStrategy": "Review documentation with new user and verify it's clear and complete, check if troubleshooting section helps resolve common issues",
+          "subtasks": []
+        },
+        {
+          "id": 14,
+          "title": "Integrar Verificação de .env no run.sh com Prompt Interativo",
+          "description": "Adicionar funcionalidade no run.sh para verificar variáveis de ambiente necessárias (como GIT_USER_NAME, GIT_USER_EMAIL) e, se não existirem no .env, pedir para o usuário digitar os valores. Isso permite que usuários sem conhecimento de variáveis de ambiente possam usar o script facilmente.",
+          "status": "done",
+          "priority": "high",
+          "dependencies": [9],
+          "details": "Integrar verificação de .env no run.sh:\n- Source lib/env_helper.sh no início do run.sh\n- Antes de executar módulo de instalação, verificar variáveis necessárias:\n  - GIT_USER_NAME\n  - GIT_USER_EMAIL\n  - Outras variáveis que podem ser necessárias\n- Se variável não existir no .env:\n  1. Mostrar prompt amigável pedindo o valor\n  2. Explicar para que serve a variável\n  3. Salvar automaticamente no .env se usuário confirmar\n- Se variável existir no .env:\n  1. Usar valor do .env sem pedir input\n  2. Mostrar mensagem confirmando que está usando valor do .env\n- Criar .env a partir de .env.example se não existir\n- Adicionar validação de valores inseridos\n- Melhorar mensagens para usuários não técnicos",
+          "testStrategy": "Testar run.sh sem .env, com .env parcial (algumas variáveis), e com .env completo. Verificar se prompts aparecem corretamente e se valores são salvos no .env",
+          "subtasks": []
+        },
+        {
+          "id": 15,
+          "title": "Corrigir Verificação de Variáveis Vazias no .env",
+          "description": "Bug: O script setup_environment_variables() em run.sh está detectando variáveis como existentes mesmo quando estão vazias no .env (ex: GIT_USER_EMAIL=\"\" ou ANTHROPIC_API_KEY=\"\"). A verificação deve considerar valores vazios como inexistentes e pedir input do usuário.",
+          "status": "done",
+          "priority": "high",
+          "dependencies": [14],
+          "details": "Corrigir lógica de verificação de variáveis:\n- Atualmente verifica apenas se a linha existe no .env\n- Problema: Aceita valores vazios como válidos (ex: GIT_USER_EMAIL=\"\")\n- Solução: Verificar se o valor não está vazio após remover aspas e espaços\n- Aplicar correção para:\n  - GIT_USER_NAME\n  - GIT_USER_EMAIL\n  - ANTHROPIC_API_KEY\n  - PERPLEXITY_API_KEY\n  - Todas as outras variáveis verificadas\n- Testar com .env contendo variáveis vazias\n- Garantir que valores vazios sejam tratados como inexistentes",
+          "testStrategy": "Criar .env com variáveis vazias (GIT_USER_EMAIL=\"\", ANTHROPIC_API_KEY=\"\") e verificar se o script pede input do usuário corretamente",
+          "subtasks": []
+        }
+      ]
+    }
+  }
+}
