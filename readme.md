@@ -32,8 +32,12 @@ cd rubinho-clean-os
 
 The easiest way to get started is using the main `run.sh` script:
 
+⚠️ **Important:** All scripts require administrator privileges (sudo).
+
 ```bash
-bash run.sh
+sudo ./run.sh
+# or
+sudo bash run.sh
 ```
 
 This will show you an interactive menu with options to:
@@ -42,31 +46,42 @@ This will show you an interactive menu with options to:
 
 **Command-line options:**
 ```bash
-bash run.sh --force      # Skip all confirmation prompts
-bash run.sh --verbose    # Enable verbose logging
-bash run.sh --help       # Show help message
+sudo ./run.sh --force      # Skip all confirmation prompts
+sudo ./run.sh --verbose    # Enable verbose logging
+sudo ./run.sh --help       # Show help message
 ```
 
 #### 3. Manual Usage (Alternative)
 
 If you prefer to run scripts manually:
 
+⚠️ **Important:** All scripts require administrator privileges (sudo).
+
 **🐧 Linux:**
 ```bash
 # Analyze disk space
-./linux/scripts/utils/analyze_space.sh
+sudo ./linux/scripts/utils/analyze_space.sh
 
 # Clean up files
-./linux/scripts/utils/clean_space.sh
+sudo ./linux/scripts/utils/clean_space.sh
 ```
 
 **🍎 macOS:**
 ```bash
 # Analyze disk space
-./macos/scripts/utils/analyze_space.sh
+sudo ./macos/scripts/utils/analyze_space.sh
 
 # Clean up files
-./macos/scripts/utils/clean_space.sh
+sudo ./macos/scripts/utils/clean_space.sh
+```
+
+**Or use the wrapper scripts in the root directory:**
+```bash
+# Analyze disk space
+sudo ./analyze_space.sh
+
+# Clean up files
+sudo ./clean_space.sh
 ```
 
 ---
@@ -240,8 +255,12 @@ cd rubinho-clean-os
 
 A forma mais fácil de começar é usar o script principal `run.sh`:
 
+⚠️ **Importante:** Todos os scripts exigem privilégios de administrador (sudo).
+
 ```bash
-bash run.sh
+sudo ./run.sh
+# ou
+sudo bash run.sh
 ```
 
 Isso mostrará um menu interativo com opções para:
@@ -250,31 +269,42 @@ Isso mostrará um menu interativo com opções para:
 
 **Opções de linha de comando:**
 ```bash
-bash run.sh --force      # Pular todos os prompts de confirmação
-bash run.sh --verbose    # Habilitar logging verboso
-bash run.sh --help       # Mostrar mensagem de ajuda
+sudo ./run.sh --force      # Pular todos os prompts de confirmação
+sudo ./run.sh --verbose    # Habilitar logging verboso
+sudo ./run.sh --help       # Mostrar mensagem de ajuda
 ```
 
 #### 3. Uso Manual (Alternativa)
 
 Se preferir executar os scripts manualmente:
 
+⚠️ **Importante:** Todos os scripts exigem privilégios de administrador (sudo).
+
 **🐧 Linux:**
 ```bash
 # Analisar espaço em disco
-./linux/scripts/utils/analyze_space.sh
+sudo ./linux/scripts/utils/analyze_space.sh
 
 # Limpar arquivos
-./linux/scripts/utils/clean_space.sh
+sudo ./linux/scripts/utils/clean_space.sh
 ```
 
 **🍎 macOS:**
 ```bash
 # Analisar espaço em disco
-./macos/scripts/utils/analyze_space.sh
+sudo ./macos/scripts/utils/analyze_space.sh
 
 # Limpar arquivos
-./macos/scripts/utils/clean_space.sh
+sudo ./macos/scripts/utils/clean_space.sh
+```
+
+**Ou use os scripts wrapper no diretório raiz:**
+```bash
+# Analisar espaço em disco
+sudo ./analyze_space.sh
+
+# Limpar arquivos
+sudo ./clean_space.sh
 ```
 
 ---
@@ -311,35 +341,37 @@ Se preferir executar os scripts manualmente:
 **Analisar Espaço em Disco:**
 ```bash
 # Usando o menu interativo (recomendado)
-bash run.sh
+sudo ./run.sh
 # Depois selecione a opção 1
 
 # Ou executar diretamente (Linux)
-./linux/scripts/utils/analyze_space.sh
-sudo ./linux/scripts/utils/analyze_space.sh  # Para análise completa do sistema
+sudo ./linux/scripts/utils/analyze_space.sh
 
 # Ou executar diretamente (macOS)
-./macos/scripts/utils/analyze_space.sh
-sudo ./macos/scripts/utils/analyze_space.sh  # Para análise completa do sistema
+sudo ./macos/scripts/utils/analyze_space.sh
+
+# Ou usar script wrapper
+sudo ./analyze_space.sh
 ```
 
 **Limpar Espaço em Disco:**
 ```bash
 # Usando o menu interativo (recomendado)
-bash run.sh
+sudo ./run.sh
 # Depois selecione a opção 2
 
 # Ou executar diretamente (Linux)
-./linux/scripts/utils/clean_space.sh              # Apenas usuário atual
-sudo ./linux/scripts/utils/clean_space.sh         # Todos os usuários
-./linux/scripts/utils/clean_space.sh --dry-run    # Apenas visualizar
-./linux/scripts/utils/clean_space.sh --log        # Salvar log em arquivo
+sudo ./linux/scripts/utils/clean_space.sh
+sudo ./linux/scripts/utils/clean_space.sh --dry-run    # Apenas visualizar
+sudo ./linux/scripts/utils/clean_space.sh --log        # Salvar log em arquivo
 
 # Ou executar diretamente (macOS)
-./macos/scripts/utils/clean_space.sh              # Apenas usuário atual
-sudo ./macos/scripts/utils/clean_space.sh         # Todos os usuários
-./macos/scripts/utils/clean_space.sh --dry-run    # Apenas visualizar
-./macos/scripts/utils/clean_space.sh --log        # Salvar log em arquivo
+sudo ./macos/scripts/utils/clean_space.sh
+sudo ./macos/scripts/utils/clean_space.sh --dry-run    # Apenas visualizar
+sudo ./macos/scripts/utils/clean_space.sh --log        # Salvar log em arquivo
+
+# Ou usar script wrapper
+sudo ./clean_space.sh
 ```
 
 ⚠️ **Aviso**: O script de limpeza removerá arquivos de desenvolvimento! Os projetos precisarão reinstalar dependências (`npm install`, etc.) após a limpeza.
@@ -388,21 +420,30 @@ rubinho-clean-os/
 ### 🐛 Solução de Problemas
 
 #### Scripts não executam
-**Problema:** `Permission denied` ao executar scripts
+**Problema:** `Permission denied` ou `command not found` ao executar scripts
 
 **Solução:**
 ```bash
+# Dar permissão de execução
 chmod +x run.sh
+chmod +x analyze_space.sh clean_space.sh
 chmod +x linux/scripts/utils/*.sh
 chmod +x macos/scripts/utils/*.sh
+
+# Executar com sudo (obrigatório)
+sudo ./run.sh
+# ou
+sudo bash run.sh
 ```
+
+**Nota:** Todos os scripts exigem privilégios de administrador. Use sempre `sudo ./script.sh` ou `sudo bash script.sh`.
 
 #### Análise demora muito
 **Problema:** Script parece travar durante a análise
 
 **Solução:**
-- Execute com `sudo` para acesso mais rápido a diretórios do sistema
-- O script está processando diretórios grandes, seja paciente
+- O script exige `sudo` e está processando diretórios grandes, seja paciente
+- O indicador de progresso mostra porcentagem e spinner animado
 - Você pode interromper com `Ctrl+C` se necessário
 - Reduza o número de itens para analisar (o script irá perguntar)
 

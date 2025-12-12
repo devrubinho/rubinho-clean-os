@@ -17,6 +17,21 @@ set -eo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# ────────────────────────────────────────────────────────────────
+# Privilege Check (Required)
+# ────────────────────────────────────────────────────────────────
+
+if [ "$EUID" -ne 0 ]; then
+    echo "❌ ERROR: This script requires administrator privileges"
+    echo ""
+    echo "Please run with sudo:"
+    echo "  sudo ./run.sh"
+    echo "  or"
+    echo "  sudo bash run.sh"
+    echo ""
+    exit 1
+fi
+
 # Parse command-line arguments
 FORCE_MODE=false
 VERBOSE_MODE=false
@@ -141,13 +156,20 @@ analyze_disk() {
     echo ""
     log_info "Starting disk analysis: $analyze_script"
 
-    # Execute analysis script
+    # Execute analysis script (already running as root via sudo)
     if bash "$analyze_script"; then
         log_info "Disk analysis completed"
+        echo ""
+        echo "Press Enter to return to the main menu..."
+        read -r
+        return 0
     else
         echo ""
         echo "❌ Disk analysis failed. Check the logs for details."
         log_error "Disk analysis failed"
+        echo ""
+        echo "Press Enter to return to the main menu..."
+        read -r
         return 1
     fi
 }
@@ -210,10 +232,17 @@ cleanup_files() {
         echo ""
         echo "✅ Cleanup completed successfully!"
         log_info "Cleanup completed successfully"
+        echo ""
+        echo "Press Enter to return to the main menu..."
+        read -r
+        return 0
     else
         echo ""
         echo "❌ Cleanup failed. Check the logs for details."
         log_error "Cleanup failed"
+        echo ""
+        echo "Press Enter to return to the main menu..."
+        read -r
         return 1
     fi
 }

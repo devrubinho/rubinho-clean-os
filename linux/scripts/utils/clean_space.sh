@@ -2,7 +2,7 @@
 
 # clean_space.sh
 # Safely removes temporary files, caches, and old logs on Linux
-# Usage: 
+# Usage:
 #   ./clean_space.sh          - Cleans only current user
 #   sudo ./clean_space.sh     - Cleans all users
 #   ./clean_space.sh --dry-run - Preview what will be cleaned without deleting
@@ -66,18 +66,21 @@ log_message() {
 # User Detection
 # ────────────────────────────────
 
-# Check if running with sudo
+# Check if running with sudo (Required)
 ORIGINAL_USER=${SUDO_USER:-$USER}
 ORIGINAL_HOME=$(eval echo ~$ORIGINAL_USER)
 
 if [ "$EUID" -eq 0 ]; then
     SUDO_MODE=true
-    log_message "⚠️  Running with administrator privileges"
+    log_message "✓ Running with administrator privileges"
     log_message "    Cleaning ALL users"
 else
-    SUDO_MODE=false
-    ORIGINAL_USER=$USER
-    ORIGINAL_HOME=$HOME
+    echo -e "${RED}${BOLD}❌ ERROR: This script requires administrator privileges${NC}"
+    echo ""
+    echo -e "${YELLOW}Please run with sudo:${NC}"
+    echo -e "${CYAN}   sudo ./clean_space.sh${NC}"
+    echo ""
+    exit 1
 fi
 
 # Show dry-run mode if enabled
@@ -128,6 +131,47 @@ calculate_space() {
 }
 
 # ────────────────────────────────
+# Progress Indicator Function
+# ────────────────────────────────
+
+show_progress() {
+    local pid=$1
+    local message=$2
+    local spinner="⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
+    local i=0
+    local percent=0
+    local last_update=0
+
+    while kill -0 "$pid" 2>/dev/null; do
+        i=$(((i + 1) % 10))
+        current_time=$(date +%s)
+
+        # Increment percentage based on elapsed time
+        if [ $percent -lt 85 ]; then
+            # Fast increment at the beginning
+            if [ $((current_time - last_update)) -ge 1 ]; then
+                percent=$((percent + 3))
+                last_update=$current_time
+            fi
+        elif [ $percent -lt 95 ]; then
+            # Slower increment in the middle
+            if [ $((current_time - last_update)) -ge 2 ]; then
+                percent=$((percent + 1))
+                last_update=$current_time
+            fi
+        else
+            # Stay at 95% until process completes (don't oscillate)
+            percent=95
+        fi
+
+        printf "\r${BLUE}${message}${NC} ${CYAN}[${spinner:$i:1}]${NC} ${YELLOW}${percent}%%${NC}" >&2
+        sleep 0.2
+    done
+
+    printf "\r${GREEN}${message}${NC} ${GREEN}✓${NC} ${GREEN}100%%${NC}\n" >&2
+}
+
+# ────────────────────────────────
 # Preview and Confirm Function
 # ────────────────────────────────
 
@@ -136,7 +180,7 @@ preview_and_confirm() {
     local description="$2"
     local items_list="$3"
     local size_info="$4"
-    
+
     echo ""
     echo -e "${BOLD}${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     echo -e "${BOLD}${YELLOW}📋 Category: $category_name${NC}"
@@ -145,7 +189,7 @@ preview_and_confirm() {
     echo -e "${CYAN}Description:${NC}"
     echo "  $description"
     echo ""
-    
+
     if [ -n "$items_list" ]; then
         echo -e "${CYAN}Items that will be removed:${NC}"
         echo "$items_list" | while IFS= read -r item; do
@@ -153,13 +197,13 @@ preview_and_confirm() {
         done
         echo ""
     fi
-    
+
     if [ -n "$size_info" ]; then
         echo -e "${CYAN}Estimated space to free:${NC}"
         echo "  $size_info"
         echo ""
     fi
-    
+
     if [ "$DRY_RUN" = "true" ]; then
         echo -e "${BOLD}${CYAN}🔍 DRY-RUN: No files will be deleted${NC}"
         echo ""
@@ -174,13 +218,13 @@ preview_and_confirm() {
         echo ""
         read -p "Continue with this category? [y/N]: " -n 1 -r
         echo ""
-        
+
         if [[ ! $REPLY =~ ^[Yy]$ ]]; then
             echo -e "${YELLOW}  ⏭️  Skipping $category_name...${NC}"
             log_message "Skipped category: $category_name"
             return 1
         fi
-        
+
         echo -e "${GREEN}  ✓ Proceeding with $category_name cleanup...${NC}"
         log_message "Proceeding with cleanup: $category_name"
         return 0
@@ -196,7 +240,7 @@ clean_dir() {
     local name=$2
     local use_sudo=${3:-false}
     local skip_confirmation=${4:-false}
-    
+
     if [ -d "$dir" ]; then
         local size_before
         if [ "$use_sudo" = "true" ]; then
@@ -204,7 +248,7 @@ clean_dir() {
         else
             size_before=$(du -sk "$dir" 2>/dev/null | cut -f1)
         fi
-        
+
         if [ -n "$size_before" ] && [ "$size_before" -gt 0 ]; then
             # Show preview and get confirmation if not skipping
             if [ "$skip_confirmation" = "false" ]; then
@@ -216,7 +260,7 @@ clean_dir() {
                 else
                     size_display="${size_mb} MB"
                 fi
-                
+
                 # Count items
                 local item_count
                 if [ "$use_sudo" = "true" ]; then
@@ -224,7 +268,7 @@ clean_dir() {
                 else
                     item_count=$(find "$dir" -mindepth 1 -maxdepth 1 2>/dev/null | wc -l | tr -d ' ')
                 fi
-                
+
                 local items_list=""
                 if [ "$item_count" -le 10 ]; then
                     # Show all items if 10 or fewer
@@ -243,12 +287,12 @@ clean_dir() {
                         items_list="${items_list}\n  ... and $((item_count - 5)) more items"
                     fi
                 fi
-                
+
                 if ! preview_and_confirm "$name" "Cache files in $dir" "$items_list" "$size_display ($item_count items)"; then
                     return 0
                 fi
             fi
-            
+
             if [ "$DRY_RUN" = "true" ]; then
                 echo -e "${CYAN}  🔍 [DRY-RUN] Would clean: ${BOLD}$name${NC}"
                 log_message "[DRY-RUN] Would clean: $name ($size_display, $item_count items)"
@@ -261,7 +305,7 @@ clean_dir() {
                     rm -rf "$dir"/* 2>/dev/null || true
                 fi
             fi
-            
+
             local size_after
             if [ "$use_sudo" = "true" ]; then
                 size_after=$(sudo du -sk "$dir" 2>/dev/null | cut -f1)
@@ -290,7 +334,7 @@ clean_old_files() {
     local days=$2
     local name=$3
     local use_sudo=${4:-false}
-    
+
     if [ -d "$dir" ]; then
         echo -e "${BLUE}  🗑️  Removing files >${days} days: ${BOLD}$name${NC}"
         local count
@@ -316,57 +360,67 @@ echo -e "${BOLD}${CYAN}║            🧹  DISK SPACE CLEANUP - Linux  🧹    
 echo -e "${BOLD}${CYAN}║                                                                ║${NC}"
 echo -e "${BOLD}${CYAN}╚════════════════════════════════════════════════════════════════╝${NC}"
 echo ""
-if [ "$SUDO_MODE" = "true" ]; then
-    echo -e "${BOLD}${MAGENTA}👥 Mode: Cleaning ALL users${NC}"
-else
-    echo -e "${BOLD}${BLUE}👤 Mode: Cleaning current user only ($ORIGINAL_USER)${NC}"
-    echo -e "${YELLOW}   💡 Run with sudo to clean all users${NC}"
-fi
+echo -e "${BOLD}${MAGENTA}👥 Mode: Cleaning ALL users${NC}"
 echo ""
-echo -e "${BOLD}${YELLOW}⚡ AGGRESSIVE CLEANUP - What will be removed:${NC}"
+echo -e "${BOLD}${YELLOW}📋 Cleanup Process${NC}"
 echo ""
-echo -e "${CYAN}  🐳 Docker:${NC}"
-echo "     • Containers, images, volumes, and networks"
-echo ""
-echo -e "${CYAN}  📦 Development Artifacts:${NC}"
-echo "     • JavaScript/TypeScript: node_modules, dist, build, .next, .turbo"
-echo "     • Python: __pycache__, .venv, venv, .pytest_cache, *.pyc"
-echo "     • Go: vendor, pkg folders"
-echo "     • Build caches (.vite, .parcel, .webpack, etc.)"
-echo "     • Test outputs (coverage, playwright, cypress, etc.)"
-echo "     • Temp files and IDE artifacts"
-echo ""
-echo -e "${CYAN}  🗑️  System:${NC}"
-echo "     • All trash (users)"
-echo "     • Application caches"
-echo "     • Old logs (>30 days)"
-echo "     • Temporary files"
-if [ "$SUDO_MODE" = "true" ]; then
-    echo ""
-    echo -e "${CYAN}  🔒 Package Manager Caches:${NC}"
-    echo "     • apt, yum, dnf, pacman caches"
-    echo "     • pip, npm, and other development tool caches"
-fi
+echo "The cleanup will be organized into categories. For each category, you will:"
+echo "  • See what will be cleaned"
+echo "  • See how much space will be freed"
+echo "  • Choose whether to proceed or skip"
 echo ""
 echo -e "${BOLD}${RED}⚠️  WARNING: Development data will be removed!${NC}"
 echo -e "${YELLOW}   Projects will need to reinstall dependencies (npm install, etc.)${NC}"
 echo ""
 
 # ────────────────────────────────
-# User Confirmation
+# Category Confirmation Function
 # ────────────────────────────────
 
-echo -e "${BOLD}${GREEN}Do you want to continue with the cleanup? (y/N): ${NC}"
-read -n 1 -r
-echo
-if [[ ! $REPLY =~ ^[YySs]$ ]]; then
-    echo -e "${RED}❌ Operation cancelled.${NC}"
-    exit 0
-fi
+ask_category_confirmation() {
+    local category_name="$1"
+    local description="$2"
+    local details="$3"
 
-echo ""
-echo -e "${BOLD}${GREEN}🚀 Starting cleanup...${NC}"
-echo ""
+    echo ""
+    echo -e "${BOLD}${CYAN}╔════════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${BOLD}${CYAN}║                                                                ║${NC}"
+    echo -e "${BOLD}${MAGENTA}║              📋 CATEGORY: $category_name$(printf '%*s' $((47 - ${#category_name})) '')║${NC}"
+    echo -e "${BOLD}${CYAN}║                                                                ║${NC}"
+    echo -e "${BOLD}${CYAN}╚════════════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+    echo -e "${CYAN}What will be cleaned:${NC}"
+    echo "$details" | while IFS= read -r line; do
+        echo "  $line"
+    done
+    echo ""
+    echo -e "${BOLD}${YELLOW}⚠️  This will permanently delete the items listed above.${NC}"
+    echo ""
+
+    if [ "$DRY_RUN" = "true" ]; then
+        echo -e "${BOLD}${CYAN}🔍 DRY-RUN MODE: No files will be deleted${NC}"
+        echo ""
+        read -p "Show next category? [Y/n]: " -n 1 -r
+        echo ""
+        if [[ $REPLY =~ ^[Nn]$ ]]; then
+            return 1
+        fi
+        return 0
+    else
+        read -p "Do you want to clean this category? [y/N]: " -n 1 -r
+        echo ""
+
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            echo -e "${YELLOW}  ⏭️  Skipping $category_name...${NC}"
+            log_message "Skipped category: $category_name"
+            return 1
+        fi
+
+        echo -e "${GREEN}  ✓ Proceeding with $category_name cleanup...${NC}"
+        log_message "Proceeding with cleanup: $category_name"
+        return 0
+    fi
+}
 
 # ────────────────────────────────
 # Development Artifacts Cleaning
@@ -376,11 +430,11 @@ clean_dev_artifacts() {
     local user_home=$1
     local user_name=$2
     local use_sudo=$3
-    
+
     echo -e "${BLUE}  🗂️  Removing ALL development build artifacts...${NC}"
     echo -e "${CYAN}     Searching in: $user_home${NC}"
     echo ""
-    
+
     # Define all patterns to clean (folders)
     local folder_patterns=(
         # JavaScript/TypeScript/Node.js
@@ -402,7 +456,7 @@ clean_dev_artifacts() {
         ".expo"
         ".expo-shared"
         "solid-start-build"
-        
+
         # Python
         "__pycache__"
         ".pytest_cache"
@@ -418,26 +472,26 @@ clean_dev_artifacts() {
         "pip-wheel-metadata"
         "htmlcov"
         ".coverage"
-        
+
         # Go
         "vendor"
-        
+
         # General
         "coverage"
         "playwright-report"
         ".vitest"
         ".idea"
     )
-    
+
     local total_items=0
     local total_freed=0
-    
+
     # Clean folders - use direct find with -delete for reliability
     for pattern in "${folder_patterns[@]}"; do
         echo -e "${BLUE}  → Searching for '$pattern' folders...${NC}"
         local pattern_count=0
         local pattern_size=0
-        
+
         if [ "$use_sudo" = "true" ]; then
             # First, count and calculate size (skip folders < 100KB to ignore test fixtures)
             while IFS= read -r path; do
@@ -467,7 +521,7 @@ clean_dev_artifacts() {
                 fi
             done < <(find "$user_home" -type d -name "$pattern" 2>/dev/null)
         fi
-        
+
         if [ $pattern_count -gt 0 ]; then
             total_items=$((total_items + pattern_count))
             total_freed=$((total_freed + pattern_size))
@@ -476,7 +530,7 @@ clean_dev_artifacts() {
         fi
         echo ""
     done
-    
+
     # Clean files
     echo -e "${BLUE}  → Cleaning cache files...${NC}"
     local file_patterns=(
@@ -484,7 +538,7 @@ clean_dev_artifacts() {
         ".eslintcache"
         ".prettier-cache"
         ".tsbuildinfo"
-        
+
         # Python
         "*.pyc"
         "*.pyo"
@@ -492,12 +546,12 @@ clean_dev_artifacts() {
         ".coverage"
         "coverage.xml"
         "nosetests.xml"
-        
+
         # General
         "*.db-journal"
         "Thumbs.db"
     )
-    
+
     for pattern in "${file_patterns[@]}"; do
         local file_count=0
         if [ "$use_sudo" = "true" ]; then
@@ -505,13 +559,13 @@ clean_dev_artifacts() {
         else
             file_count=$(find "$user_home" -type f -name "$pattern" ! -name ".env" ! -name ".env.*" -delete -print 2>/dev/null | wc -l | tr -d ' ')
         fi
-        
+
         if [ "$file_count" -gt 0 ]; then
             total_items=$((total_items + file_count))
             echo -e "${GREEN}     ✓ Removed $file_count '$pattern' file(s)${NC}"
         fi
     done
-    
+
     echo ""
     echo -e "${BOLD}${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     if [ $total_items -gt 0 ]; then
@@ -538,7 +592,7 @@ clean_user_all() {
     local user_home=$1
     local user_name=$2
     local use_sudo=$3
-    
+
     echo ""
     echo -e "${BOLD}${CYAN}╔════════════════════════════════════════════════════════════════╗${NC}"
     echo -e "${BOLD}${CYAN}║                                                                ║${NC}"
@@ -546,30 +600,35 @@ clean_user_all() {
     echo -e "${BOLD}${CYAN}║                                                                ║${NC}"
     echo -e "${BOLD}${CYAN}╚════════════════════════════════════════════════════════════════╝${NC}"
     echo ""
-    
+
     # Caches
-    echo -e "${BOLD}${YELLOW}📦 Caches and Applications${NC}"
-    echo -e "${CYAN}─────────────────────────────────────────────────────────────────${NC}"
-    clean_dir "$user_home/.cache" "General Caches" "$use_sudo"
-    clean_dir "$user_home/.cache/google-chrome" "Chrome" "$use_sudo"
-    clean_dir "$user_home/.cache/chromium" "Chromium" "$use_sudo"
-    clean_dir "$user_home/.cache/firefox" "Firefox" "$use_sudo"
-    clean_dir "$user_home/.cache/Code" "VS Code" "$use_sudo"
-    clean_dir "$user_home/.cache/spotify" "Spotify" "$use_sudo"
-    clean_dir "$user_home/.cache/slack" "Slack" "$use_sudo"
-    clean_dir "$user_home/.cache/yarn" "Yarn" "$use_sudo"
-    clean_dir "$user_home/.cache/npm" "npm" "$use_sudo"
-    clean_dir "$user_home/.cache/pip" "pip" "$use_sudo"
-    clean_dir "$user_home/.cache/cypress" "Cypress" "$use_sudo"
-    
-    if [ -d "$user_home/.local/share/logs" ]; then
-        clean_old_files "$user_home/.local/share/logs" 7 "Logs (>7 days)" "$use_sudo"
+    local cache_details="• Application caches (Chrome, Firefox, VS Code, Spotify, Slack, etc.)
+• Package manager caches (npm, yarn, pip)
+• Development tool caches (Cypress, etc.)
+• General system caches
+• Old log files (>7 days)"
+
+    if ask_category_confirmation "Application Caches" "Remove all application and development tool caches for user $user_name" "$cache_details"; then
+        echo -e "${BOLD}${YELLOW}📦 Caches and Applications${NC}"
+        echo -e "${CYAN}─────────────────────────────────────────────────────────────────${NC}"
+        clean_dir "$user_home/.cache" "General Caches" "$use_sudo" true
+        clean_dir "$user_home/.cache/google-chrome" "Chrome" "$use_sudo" true
+        clean_dir "$user_home/.cache/chromium" "Chromium" "$use_sudo" true
+        clean_dir "$user_home/.cache/firefox" "Firefox" "$use_sudo" true
+        clean_dir "$user_home/.cache/Code" "VS Code" "$use_sudo" true
+        clean_dir "$user_home/.cache/spotify" "Spotify" "$use_sudo" true
+        clean_dir "$user_home/.cache/slack" "Slack" "$use_sudo" true
+        clean_dir "$user_home/.cache/yarn" "Yarn" "$use_sudo" true
+        clean_dir "$user_home/.cache/npm" "npm" "$use_sudo" true
+        clean_dir "$user_home/.cache/pip" "pip" "$use_sudo" true
+        clean_dir "$user_home/.cache/cypress" "Cypress" "$use_sudo" true
+
+        if [ -d "$user_home/.local/share/logs" ]; then
+            clean_old_files "$user_home/.local/share/logs" 7 "Logs (>7 days)" "$use_sudo"
+        fi
     fi
-    
+
     # Trash
-    echo ""
-    echo -e "${BOLD}${YELLOW}🗑️  Trash${NC}"
-    echo -e "${CYAN}─────────────────────────────────────────────────────────────────${NC}"
     local trash_path="$user_home/.local/share/Trash"
     if [ -d "$trash_path" ]; then
         local size_before
@@ -578,7 +637,7 @@ clean_user_all() {
         else
             size_before=$(du -sk "$trash_path" 2>/dev/null | cut -f1)
         fi
-        
+
         if [ -n "$size_before" ] && [ "$size_before" -gt 0 ]; then
             local size_before_mb=$((size_before / 1024))
             local size_before_gb=$((size_before_mb / 1024))
@@ -588,7 +647,7 @@ clean_user_all() {
             else
                 size_display="${size_before_mb} MB"
             fi
-            
+
             # Count items in trash
             local trash_count
             if [ "$use_sudo" = "true" ]; then
@@ -596,14 +655,17 @@ clean_user_all() {
             else
                 trash_count=$(find "$trash_path" -mindepth 1 2>/dev/null | wc -l | tr -d ' ')
             fi
-            
-            local items_list="  • All items in Trash (permanently deleted)\n  • $trash_count items total"
-            
-            if ! preview_and_confirm "Trash" "Permanently delete all items in Trash" "$items_list" "$size_display"; then
-                echo -e "${YELLOW}  ⏭️  Skipping trash cleanup...${NC}"
-            else
+
+            local trash_details="• All items in Trash (permanently deleted)
+• Total items: $trash_count
+• Estimated space: $size_display"
+
+            if ask_category_confirmation "Trash" "Permanently delete all items in Trash for user $user_name" "$trash_details"; then
+                echo ""
+                echo -e "${BOLD}${YELLOW}🗑️  Trash${NC}"
+                echo -e "${CYAN}─────────────────────────────────────────────────────────────────${NC}"
                 echo -e "${BLUE}  🗑️  Emptying trash: ${YELLOW}${size_before_mb} MB${NC}"
-                
+
                 if [ "$use_sudo" = "true" ]; then
                     sudo chmod -R u+w "$trash_path" 2>/dev/null || true
                     sudo find "$trash_path" -mindepth 1 -delete 2>/dev/null || true
@@ -613,9 +675,9 @@ clean_user_all() {
                     find "$trash_path" -mindepth 1 -delete 2>/dev/null || true
                     rm -rf "$trash_path"/* 2>/dev/null || true
                 fi
-                
+
                 sleep 2
-                
+
                 local size_after
                 if [ "$use_sudo" = "true" ]; then
                     size_after=$(sudo du -sk "$trash_path" 2>/dev/null | cut -f1)
@@ -625,14 +687,14 @@ clean_user_all() {
                 local size_after=${size_after:-0}
                 local freed=$((size_before - size_after))
                 local freed_mb=$((freed / 1024))
-                
+
                 local remaining=0
                 if [ "$use_sudo" = "true" ]; then
                     remaining=$(sudo find "$trash_path" -mindepth 1 2>/dev/null | wc -l | tr -d ' ')
                 else
                     remaining=$(find "$trash_path" -mindepth 1 2>/dev/null | wc -l | tr -d ' ')
                 fi
-                
+
                 if [ "$remaining" -eq 0 ] || [ $freed -gt 0 ]; then
                     echo -e "${GREEN}     ✓ Trash emptied: ${freed_mb} MB freed${NC}"
                 else
@@ -643,79 +705,186 @@ clean_user_all() {
             echo -e "${GREEN}  ✓ Trash already empty${NC}"
         fi
     fi
-    
-    # Development
-    echo ""
-    echo -e "${BOLD}${YELLOW}💻 Development Files${NC}"
-    echo -e "${CYAN}─────────────────────────────────────────────────────────────────${NC}"
-    
-    # Preview development artifacts before cleaning
-    local dev_patterns=(
-        "node_modules"
-        "dist"
-        "build"
-        ".next"
-        ".turbo"
-        "__pycache__"
-        ".venv"
-        "venv"
-        "coverage"
+
+    # Development Artifacts
+    echo -e "${CYAN}🔍 Scanning for development artifacts...${NC}"
+    local cleanable_temp=$(mktemp)
+    (
+        # Scan all development patterns
+    local folder_patterns=(
+        "node_modules" "dist" "build" "out" ".next" ".turbo" "nx-out" ".vite"
+        ".rspack-cache" ".rollup.cache" ".webpack" ".parcel-cache" ".sass-cache"
+        ".pnpm-store" "storybook-static" ".expo" ".expo-shared" "solid-start-build"
+        "__pycache__" ".pytest_cache" ".tox" ".venv" "venv" ".eggs" ".mypy_cache"
+        ".ruff_cache" ".hypothesis" ".pytype" "htmlcov" ".coverage" "vendor"
+        "coverage" "playwright-report" ".vitest" ".idea"
     )
-    
-    local dev_items_list=""
-    local dev_total_size=0
-    local dev_count=0
-    
-    for pattern in "${dev_patterns[@]}"; do
-        local pattern_count=0
-        local pattern_size=0
-        
+
+    for pattern in "${folder_patterns[@]}"; do
         if [ "$use_sudo" = "true" ]; then
             while IFS= read -r path; do
-                if [ -d "$path" ] || [ -f "$path" ]; then
+                if [ -d "$path" ]; then
                     local size_kb=$(sudo du -sk "$path" 2>/dev/null | cut -f1)
                     if [ -n "$size_kb" ] && [ "$size_kb" -gt 100 ]; then
-                        pattern_count=$((pattern_count + 1))
-                        pattern_size=$((pattern_size + size_kb))
+                        local size_human=$(sudo du -sh "$path" 2>/dev/null | awk '{print $1}')
+                        echo "$size_kb $size_human $path"
                     fi
                 fi
-            done < <(sudo find "$user_home" -type d -name "$pattern" -o -type f -name "$pattern" 2>/dev/null | head -20)
+            done < <(sudo find "$user_home" -type d -name "$pattern" 2>/dev/null)
         else
             while IFS= read -r path; do
-                if [ -d "$path" ] || [ -f "$path" ]; then
+                if [ -d "$path" ]; then
                     local size_kb=$(du -sk "$path" 2>/dev/null | cut -f1)
                     if [ -n "$size_kb" ] && [ "$size_kb" -gt 100 ]; then
-                        pattern_count=$((pattern_count + 1))
-                        pattern_size=$((pattern_size + size_kb))
+                        local size_human=$(du -sh "$path" 2>/dev/null | awk '{print $1}')
+                        echo "$size_kb $size_human $path"
                     fi
                 fi
-            done < <(find "$user_home" -type d -name "$pattern" -o -type f -name "$pattern" 2>/dev/null | head -20)
+            done < <(find "$user_home" -type d -name "$pattern" 2>/dev/null)
         fi
-        
-        if [ $pattern_count -gt 0 ]; then
-            dev_count=$((dev_count + pattern_count))
-            dev_total_size=$((dev_total_size + pattern_size))
-            local size_mb=$((pattern_size / 1024))
-            dev_items_list="${dev_items_list}  • $pattern: $pattern_count items (${size_mb} MB)\n"
-        fi
-    done
-    
-    if [ $dev_count -gt 0 ]; then
-        local dev_total_mb=$((dev_total_size / 1024))
-        local dev_total_gb=$((dev_total_mb / 1024))
-        local size_display
-        if [ $dev_total_gb -gt 0 ]; then
-            size_display="${dev_total_gb}.$((dev_total_mb % 1024 / 100)) GB"
+    done >> "$cleanable_temp"
+
+    # Scan files
+    local file_patterns=(
+        ".eslintcache" ".prettier-cache" ".tsbuildinfo" "*.pyc" "*.pyo" "*.pyd"
+        ".coverage" "coverage.xml" "nosetests.xml"
+    )
+
+    for pattern in "${file_patterns[@]}"; do
+        if [ "$use_sudo" = "true" ]; then
+            while IFS= read -r path; do
+                if [ -f "$path" ]; then
+                    local size_kb=$(sudo du -sk "$path" 2>/dev/null | cut -f1)
+                    if [ -n "$size_kb" ] && [ "$size_kb" -gt 0 ]; then
+                        local size_human=$(sudo du -sh "$path" 2>/dev/null | awk '{print $1}')
+                        echo "$size_kb $size_human $path"
+                    fi
+                fi
+            done < <(sudo find "$user_home" -type f -name "$pattern" ! -name ".env" ! -name ".env.*" 2>/dev/null)
         else
-            size_display="${dev_total_mb} MB"
+            while IFS= read -r path; do
+                if [ -f "$path" ]; then
+                    local size_kb=$(du -sk "$path" 2>/dev/null | cut -f1)
+                    if [ -n "$size_kb" ] && [ "$size_kb" -gt 0 ]; then
+                        local size_human=$(du -sh "$path" 2>/dev/null | awk '{print $1}')
+                        echo "$size_kb $size_human $path"
+                    fi
+                fi
+            done < <(find "$user_home" -type f -name "$pattern" ! -name ".env" ! -name ".env.*" 2>/dev/null)
         fi
-        
-        if ! preview_and_confirm "Development Artifacts" "Build files, dependencies, and development caches (node_modules, dist, build, etc.)" "$dev_items_list" "$size_display ($dev_count items)"; then
-            echo -e "${YELLOW}  ⏭️  Skipping development artifacts cleanup...${NC}"
+    done >> "$cleanable_temp"
+    ) &
+    SCAN_PID=$!
+    show_progress "$SCAN_PID" "  Scanning for cleanable items"
+    wait "$SCAN_PID" 2>/dev/null
+
+    if [ -s "$cleanable_temp" ]; then
+        # Group by item name and sum sizes
+        local grouped_temp=$(mktemp)
+        awk '{
+            path = $3
+            n = split(path, parts, "/")
+            item_name = parts[n]
+
+            if (path ~ /\/vendor\/bundle$/) {
+                item_name = "vendor/bundle"
+            }
+
+            size_kb = $1
+            sizes[item_name] += size_kb
+            counts[item_name]++
+        }
+        END {
+            for (item in sizes) {
+                printf "%d %s %d %s\n", sizes[item], item, counts[item], (counts[item] == 1 ? "item" : "items")
+            }
+        }' "$cleanable_temp" | sort -rn > "$grouped_temp"
+
+        # Display grouped items
+        echo ""
+        echo -e "${BOLD}${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+        echo -e "${BOLD}${MAGENTA}📋 ITEMS TO BE DELETED (Grouped by Name)${NC}"
+        echo -e "${BOLD}${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+        echo ""
+
+        local rank=0
+        local total_size_kb=0
+        local total_count=0
+
+        while IFS= read -r line; do
+            if [ -n "$line" ]; then
+                rank=$((rank + 1))
+                local size_kb=$(echo "$line" | awk '{print $1}')
+                local item_name=$(echo "$line" | awk '{print $2}')
+                local count=$(echo "$line" | awk '{print $3}')
+                local item_type=$(echo "$line" | awk '{print $4}')
+
+                total_size_kb=$((total_size_kb + size_kb))
+                total_count=$((total_count + count))
+
+                # Format size
+                local size_mb=$((size_kb / 1024))
+                local size_gb=$((size_mb / 1024))
+                local size_display
+                if [ $size_gb -gt 0 ]; then
+                    local gb_decimal=$(((size_mb % 1024) * 10 / 1024))
+                    size_display="${size_gb}.${gb_decimal}G"
+                else
+                    size_display="${size_mb}M"
+                fi
+
+                # Color coding
+                local color="${NC}"
+                if [ $rank -le 3 ]; then
+                    color="${RED}"
+                elif [ $rank -le 6 ]; then
+                    color="${YELLOW}"
+                else
+                    color="${BLUE}"
+                fi
+
+                printf "${color}%3d. %6s %s (%d %s)${NC}\n" "$rank" "$size_display" "$item_name" "$count" "$item_type"
+            fi
+        done < "$grouped_temp"
+
+        # Show total
+        echo ""
+        local total_mb=$((total_size_kb / 1024))
+        local total_gb=$((total_mb / 1024))
+        local total_display
+        if [ $total_gb -gt 0 ]; then
+            local gb_decimal=$(((total_mb % 1024) * 10 / 1024))
+            total_display="${total_gb}.${gb_decimal} GB"
         else
+            total_display="${total_mb} MB"
+        fi
+
+        echo -e "${BOLD}${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+        echo -e "${BOLD}${GREEN}📊 TOTAL: ${total_count} items - ${total_display}${NC}"
+        echo -e "${BOLD}${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+        echo ""
+
+        local dev_details="• JavaScript/TypeScript: node_modules, dist, build, .next, .turbo
+• Python: __pycache__, .venv, venv, .pytest_cache, *.pyc
+• Go: vendor folders
+• Build caches: .vite, .parcel, .webpack, etc.
+• Test outputs: coverage, playwright, cypress, etc.
+• IDE artifacts: .idea, etc.
+⚠️  WARNING: Projects will need to reinstall dependencies!"
+
+        if ask_category_confirmation "Development Artifacts" "Remove all development build artifacts and dependencies for user $user_name" "$dev_details"; then
+            echo ""
+            echo -e "${BOLD}${YELLOW}💻 Development Files${NC}"
+            echo -e "${CYAN}─────────────────────────────────────────────────────────────────${NC}"
             clean_dev_artifacts "$user_home" "$user_name" "$use_sudo"
         fi
+
+        # Cleanup temp files
+        rm -f "$cleanable_temp" "$grouped_temp" 2>/dev/null
     else
+        echo ""
+        echo -e "${BOLD}${YELLOW}💻 Development Files${NC}"
+        echo -e "${CYAN}─────────────────────────────────────────────────────────────────${NC}"
         echo -e "${GREEN}  ✓ No development artifacts found to clean${NC}"
     fi
 }
@@ -743,93 +912,132 @@ fi
 # System Cleanup
 # ────────────────────────────────
 
-echo ""
-echo -e "${BOLD}${CYAN}╔════════════════════════════════════════════════════════════════╗${NC}"
-echo -e "${BOLD}${CYAN}║                                                                ║${NC}"
-echo -e "${BOLD}${MAGENTA}║                     ⚙️  SYSTEM CLEANUP                         ║${NC}"
-echo -e "${BOLD}${CYAN}║                                                                ║${NC}"
-echo -e "${BOLD}${CYAN}╚════════════════════════════════════════════════════════════════╝${NC}"
-echo ""
+system_details="• System logs older than 30 days
+• Temporary files in /tmp
+• Temporary files in /var/tmp"
 
-echo -e "${BOLD}${YELLOW}📝 System Logs${NC}"
-echo -e "${CYAN}─────────────────────────────────────────────────────────────────${NC}"
-clean_old_files "/var/log" 30 "Logs (>30 days)" "$SUDO_MODE"
+if ask_category_confirmation "System Files" "Remove old system logs and temporary files" "$system_details"; then
+    echo ""
+    echo -e "${BOLD}${CYAN}╔════════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${BOLD}${CYAN}║                                                                ║${NC}"
+    echo -e "${BOLD}${MAGENTA}║                     ⚙️  SYSTEM CLEANUP                         ║${NC}"
+    echo -e "${BOLD}${CYAN}║                                                                ║${NC}"
+    echo -e "${BOLD}${CYAN}╚════════════════════════════════════════════════════════════════╝${NC}"
+    echo ""
 
-echo ""
-echo -e "${BOLD}${YELLOW}⏱️  Temporary Files${NC}"
-echo -e "${CYAN}─────────────────────────────────────────────────────────────────${NC}"
-clean_dir "/tmp" "Temporary Files" "$SUDO_MODE"
-clean_dir "/var/tmp" "Temporary Files (var)" "$SUDO_MODE"
+    echo -e "${BOLD}${YELLOW}📝 System Logs${NC}"
+    echo -e "${CYAN}─────────────────────────────────────────────────────────────────${NC}"
+    clean_old_files "/var/log" 30 "Logs (>30 days)" "$SUDO_MODE"
+
+    echo ""
+    echo -e "${BOLD}${YELLOW}⏱️  Temporary Files${NC}"
+    echo -e "${CYAN}─────────────────────────────────────────────────────────────────${NC}"
+    clean_dir "/tmp" "Temporary Files" "$SUDO_MODE" true
+    clean_dir "/var/tmp" "Temporary Files (var)" "$SUDO_MODE" true
+fi
 
 # ────────────────────────────────
 # Development Tools Cleanup
 # ────────────────────────────────
 
-echo ""
-echo -e "${BOLD}${CYAN}╔════════════════════════════════════════════════════════════════╗${NC}"
-echo -e "${BOLD}${CYAN}║                                                                ║${NC}"
-echo -e "${BOLD}${MAGENTA}║                 🛠️  DEVELOPMENT TOOLS                          ║${NC}"
-echo -e "${BOLD}${CYAN}║                                                                ║${NC}"
-echo -e "${BOLD}${CYAN}╚════════════════════════════════════════════════════════════════╝${NC}"
-echo ""
+tool_caches=""
+has_tools=false
 
-# npm
 if command -v npm &> /dev/null; then
-    echo -e "${BOLD}${YELLOW}📦 npm${NC}"
-    echo -e "${CYAN}─────────────────────────────────────────────────────────────────${NC}"
-    npm cache clean --force 2>/dev/null || true
-    echo -e "${GREEN}  ✓ npm cache cleaned${NC}"
-    echo ""
+    tool_caches="${tool_caches}• npm cache\n"
+    has_tools=true
 fi
 
-# pip
 if command -v pip &> /dev/null; then
-    echo -e "${BOLD}${YELLOW}🐍 pip${NC}"
-    echo -e "${CYAN}─────────────────────────────────────────────────────────────────${NC}"
-    pip cache purge 2>/dev/null || true
-    echo -e "${GREEN}  ✓ pip cache cleaned${NC}"
-    echo ""
+    tool_caches="${tool_caches}• pip cache\n"
+    has_tools=true
 fi
-
-# ────────────────────────────────
-# Package Manager Cleanup (sudo only)
-# ────────────────────────────────
 
 if [ "$SUDO_MODE" = "true" ]; then
-    echo -e "${BOLD}${YELLOW}📦 Package Manager Caches${NC}"
-    echo -e "${CYAN}─────────────────────────────────────────────────────────────────${NC}"
-    
-    # apt (Debian/Ubuntu)
     if command -v apt-get &> /dev/null; then
-        echo -e "${BLUE}  🧹 Cleaning apt cache...${NC}"
-        apt-get clean 2>/dev/null || true
-        apt-get autoclean 2>/dev/null || true
-        echo -e "${GREEN}  ✓ apt cache cleaned${NC}"
-        echo ""
+        tool_caches="${tool_caches}• apt cache (system)\n"
+        has_tools=true
     fi
-    
-    # yum (RHEL/CentOS)
     if command -v yum &> /dev/null; then
-        echo -e "${BLUE}  🧹 Cleaning yum cache...${NC}"
-        yum clean all 2>/dev/null || true
-        echo -e "${GREEN}  ✓ yum cache cleaned${NC}"
-        echo ""
+        tool_caches="${tool_caches}• yum cache (system)\n"
+        has_tools=true
     fi
-    
-    # dnf (Fedora)
     if command -v dnf &> /dev/null; then
-        echo -e "${BLUE}  🧹 Cleaning dnf cache...${NC}"
-        dnf clean all 2>/dev/null || true
-        echo -e "${GREEN}  ✓ dnf cache cleaned${NC}"
-        echo ""
+        tool_caches="${tool_caches}• dnf cache (system)\n"
+        has_tools=true
     fi
-    
-    # pacman (Arch)
     if command -v pacman &> /dev/null; then
-        echo -e "${BLUE}  🧹 Cleaning pacman cache...${NC}"
-        pacman -Sc --noconfirm 2>/dev/null || true
-        echo -e "${GREEN}  ✓ pacman cache cleaned${NC}"
+        tool_caches="${tool_caches}• pacman cache (system)\n"
+        has_tools=true
+    fi
+fi
+
+if [ "$has_tools" = "true" ]; then
+    if ask_category_confirmation "Development Tool Caches" "Clear package manager and development tool caches" "$tool_caches"; then
         echo ""
+        echo -e "${BOLD}${CYAN}╔════════════════════════════════════════════════════════════════╗${NC}"
+        echo -e "${BOLD}${CYAN}║                                                                ║${NC}"
+        echo -e "${BOLD}${MAGENTA}║                 🛠️  DEVELOPMENT TOOLS                          ║${NC}"
+        echo -e "${BOLD}${CYAN}║                                                                ║${NC}"
+        echo -e "${BOLD}${CYAN}╚════════════════════════════════════════════════════════════════╝${NC}"
+        echo ""
+
+        # npm
+        if command -v npm &> /dev/null; then
+            echo -e "${BOLD}${YELLOW}📦 npm${NC}"
+            echo -e "${CYAN}─────────────────────────────────────────────────────────────────${NC}"
+            npm cache clean --force 2>/dev/null || true
+            echo -e "${GREEN}  ✓ npm cache cleaned${NC}"
+            echo ""
+        fi
+
+        # pip
+        if command -v pip &> /dev/null; then
+            echo -e "${BOLD}${YELLOW}🐍 pip${NC}"
+            echo -e "${CYAN}─────────────────────────────────────────────────────────────────${NC}"
+            pip cache purge 2>/dev/null || true
+            echo -e "${GREEN}  ✓ pip cache cleaned${NC}"
+            echo ""
+        fi
+
+        # Package Manager Cleanup (sudo only)
+        if [ "$SUDO_MODE" = "true" ]; then
+            echo -e "${BOLD}${YELLOW}📦 Package Manager Caches${NC}"
+            echo -e "${CYAN}─────────────────────────────────────────────────────────────────${NC}"
+
+            # apt (Debian/Ubuntu)
+            if command -v apt-get &> /dev/null; then
+                echo -e "${BLUE}  🧹 Cleaning apt cache...${NC}"
+                apt-get clean 2>/dev/null || true
+                apt-get autoclean 2>/dev/null || true
+                echo -e "${GREEN}  ✓ apt cache cleaned${NC}"
+                echo ""
+            fi
+
+            # yum (RHEL/CentOS)
+            if command -v yum &> /dev/null; then
+                echo -e "${BLUE}  🧹 Cleaning yum cache...${NC}"
+                yum clean all 2>/dev/null || true
+                echo -e "${GREEN}  ✓ yum cache cleaned${NC}"
+                echo ""
+            fi
+
+            # dnf (Fedora)
+            if command -v dnf &> /dev/null; then
+                echo -e "${BLUE}  🧹 Cleaning dnf cache...${NC}"
+                dnf clean all 2>/dev/null || true
+                echo -e "${GREEN}  ✓ dnf cache cleaned${NC}"
+                echo ""
+            fi
+
+            # pacman (Arch)
+            if command -v pacman &> /dev/null; then
+                echo -e "${BLUE}  🧹 Cleaning pacman cache...${NC}"
+                pacman -Sc --noconfirm 2>/dev/null || true
+                echo -e "${GREEN}  ✓ pacman cache cleaned${NC}"
+                echo ""
+            fi
+        fi
     fi
 fi
 
@@ -838,77 +1046,76 @@ fi
 # ────────────────────────────────
 
 if command -v docker &> /dev/null; then
-    echo ""
-    echo -e "${BOLD}${CYAN}╔════════════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${BOLD}${CYAN}║                                                                ║${NC}"
-    echo -e "${BOLD}${MAGENTA}║                         🐳 DOCKER                              ║${NC}"
-    echo -e "${BOLD}${CYAN}║                                                                ║${NC}"
-    echo -e "${BOLD}${CYAN}╚════════════════════════════════════════════════════════════════╝${NC}"
-    echo ""
-    
     # Check if Docker daemon is actually running
-    echo -e "${BLUE}  🔍 Checking Docker status...${NC}"
     if timeout 3 docker info &>/dev/null; then
-        echo -e "${GREEN}  ✓ Docker is running${NC}"
-        echo ""
-        
         # Get Docker system info before cleanup
         local docker_info_before
         docker_info_before=$(timeout 5 docker system df 2>/dev/null || echo "")
-        
+
         # Count Docker resources
         local containers_count=$(docker ps -aq 2>/dev/null | wc -l | tr -d ' ')
         local images_count=$(docker images -aq 2>/dev/null | wc -l | tr -d ' ')
         local volumes_count=$(docker volume ls -q 2>/dev/null | wc -l | tr -d ' ')
         local networks_count=$(docker network ls -q 2>/dev/null | grep -v bridge | grep -v host | grep -v none | wc -l | tr -d ' ')
-        
-        local docker_items_list=""
+
+        local docker_details=""
         if [ "$containers_count" -gt 0 ]; then
-            docker_items_list="${docker_items_list}  • Containers: $containers_count\n"
+            docker_details="${docker_details}• Containers: $containers_count (will be stopped and removed)\n"
         fi
         if [ "$images_count" -gt 0 ]; then
-            docker_items_list="${docker_items_list}  • Images: $images_count\n"
+            docker_details="${docker_details}• Images: $images_count\n"
         fi
         if [ "$volumes_count" -gt 0 ]; then
-            docker_items_list="${docker_items_list}  • Volumes: $volumes_count\n"
+            docker_details="${docker_details}• Volumes: $volumes_count\n"
         fi
         if [ "$networks_count" -gt 0 ]; then
-            docker_items_list="${docker_items_list}  • Networks: $networks_count\n"
+            docker_details="${docker_details}• Networks: $networks_count\n"
         fi
-        
-        # Show space used before
-        echo -e "${BLUE}  📊 Space used before:${NC}"
-        echo "$docker_info_before" | tail -n +2 | while IFS= read -r line; do
-            echo "     $line"
-        done
-        echo ""
-        
-        if [ -n "$docker_items_list" ]; then
-            if ! preview_and_confirm "Docker Resources" "All Docker containers, images, volumes, and networks (WARNING: This will stop all running containers!)" "$docker_items_list" "See space breakdown above"; then
-                echo -e "${YELLOW}  ⏭️  Skipping Docker cleanup...${NC}"
-            else
+
+        if [ -n "$docker_details" ]; then
+            docker_details="${docker_details}⚠️  WARNING: This will stop ALL running containers!"
+
+            if ask_category_confirmation "Docker" "Remove all Docker containers, images, volumes, and networks" "$docker_details"; then
+                echo ""
+                echo -e "${BOLD}${CYAN}╔════════════════════════════════════════════════════════════════╗${NC}"
+                echo -e "${BOLD}${CYAN}║                                                                ║${NC}"
+                echo -e "${BOLD}${MAGENTA}║                         🐳 DOCKER                              ║${NC}"
+                echo -e "${BOLD}${CYAN}║                                                                ║${NC}"
+                echo -e "${BOLD}${CYAN}╚════════════════════════════════════════════════════════════════╝${NC}"
+                echo ""
+
+                echo -e "${BLUE}  🔍 Checking Docker status...${NC}"
+                echo -e "${GREEN}  ✓ Docker is running${NC}"
+                echo ""
+
+                # Show space used before
+                echo -e "${BLUE}  📊 Space used before:${NC}"
+                echo "$docker_info_before" | tail -n +2 | while IFS= read -r line; do
+                    echo "     $line"
+                done
+                echo ""
                 # Stop and remove everything with timeouts
                 echo -e "${BLUE}  🛑 Stopping containers...${NC}"
                 timeout 30 docker stop $(docker ps -aq 2>/dev/null) 2>/dev/null || true
-                
+
                 echo -e "${BLUE}  🗑️  Removing containers...${NC}"
                 timeout 30 docker rm -f $(docker ps -aq 2>/dev/null) 2>/dev/null || true
-                
+
                 echo -e "${BLUE}  📦 Removing images...${NC}"
                 timeout 60 docker rmi -f $(docker images -aq 2>/dev/null) 2>/dev/null || true
-                
+
                 echo -e "${BLUE}  💾 Removing volumes...${NC}"
                 timeout 30 docker volume rm $(docker volume ls -q 2>/dev/null) 2>/dev/null || true
-                
+
                 echo -e "${BLUE}  🔗 Removing networks...${NC}"
                 timeout 10 docker network prune -f 2>/dev/null || true
-                
+
                 echo -e "${BLUE}  🧹 Final cleanup...${NC}"
                 timeout 60 docker system prune -a --volumes -f 2>/dev/null || true
-                
+
                 echo ""
                 echo -e "${GREEN}  ✓ Docker completely cleaned!${NC}"
-                
+
                 # Show space used after
                 echo ""
                 echo -e "${BLUE}  📊 Space used after:${NC}"
@@ -917,9 +1124,23 @@ if command -v docker &> /dev/null; then
                 done
             fi
         else
+            echo ""
+            echo -e "${BOLD}${CYAN}╔════════════════════════════════════════════════════════════════╗${NC}"
+            echo -e "${BOLD}${CYAN}║                                                                ║${NC}"
+            echo -e "${BOLD}${MAGENTA}║                         🐳 DOCKER                              ║${NC}"
+            echo -e "${BOLD}${CYAN}║                                                                ║${NC}"
+            echo -e "${BOLD}${CYAN}╚════════════════════════════════════════════════════════════════╝${NC}"
+            echo ""
             echo -e "${GREEN}  ✓ Docker is already clean (no resources to remove)${NC}"
         fi
     else
+        echo ""
+        echo -e "${BOLD}${CYAN}╔════════════════════════════════════════════════════════════════╗${NC}"
+        echo -e "${BOLD}${CYAN}║                                                                ║${NC}"
+        echo -e "${BOLD}${MAGENTA}║                         🐳 DOCKER                              ║${NC}"
+        echo -e "${BOLD}${CYAN}║                                                                ║${NC}"
+        echo -e "${BOLD}${CYAN}╚════════════════════════════════════════════════════════════════╝${NC}"
+        echo ""
         echo -e "${YELLOW}  ⚠️  Docker is not running - skipping Docker cleanup${NC}"
         echo -e "${CYAN}     Start Docker daemon if you want to clean Docker data${NC}"
     fi
@@ -978,4 +1199,3 @@ if [ "$SAVE_LOG" = "true" ] && [ -n "$LOG_FILE" ]; then
 fi
 
 echo ""
-
