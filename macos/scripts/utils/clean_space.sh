@@ -768,37 +768,36 @@ if [ -s "$CLEANABLE_TEMP" ]; then
     echo -e "${BOLD}${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     echo ""
 
-    local rank=0
-    local total_size_kb=0
-    local total_count=0
+    rank=0
+    total_size_kb=0
+    total_count=0
 
     while IFS= read -r line; do
         if [ -n "$line" ]; then
             rank=$((rank + 1))
-            local size_kb=$(echo "$line" | awk '{print $1}')
-            local item_name=$(echo "$line" | awk '{print $2}')
-            local count=$(echo "$line" | awk '{print $3}')
-            local item_type=$(echo "$line" | awk '{print $4}')
+            size_kb=$(echo "$line" | awk '{print $1}')
+            item_name=$(echo "$line" | awk '{print $2}')
+            count=$(echo "$line" | awk '{print $3}')
+            item_type=$(echo "$line" | awk '{print $4}')
 
             total_size_kb=$((total_size_kb + size_kb))
             total_count=$((total_count + count))
 
             # Format size
-            local size_mb=$((size_kb / 1024))
-            local size_gb=$((size_mb / 1024))
-            local size_display
-            if [ $size_gb -gt 0 ]; then
-                local gb_decimal=$(((size_mb % 1024) * 10 / 1024))
+            size_mb=$((size_kb / 1024))
+            size_gb=$((size_mb / 1024))
+            if [ "$size_gb" -gt 0 ] 2>/dev/null; then
+                gb_decimal=$(((size_mb % 1024) * 10 / 1024))
                 size_display="${size_gb}.${gb_decimal}G"
             else
                 size_display="${size_mb}M"
             fi
 
             # Color coding
-            local color="${NC}"
-            if [ $rank -le 3 ]; then
+            color="${NC}"
+            if [ "$rank" -le 3 ]; then
                 color="${RED}"
-            elif [ $rank -le 6 ]; then
+            elif [ "$rank" -le 6 ]; then
                 color="${YELLOW}"
             else
                 color="${BLUE}"
@@ -810,11 +809,10 @@ if [ -s "$CLEANABLE_TEMP" ]; then
 
     # Show total
     echo ""
-    local total_mb=$((total_size_kb / 1024))
-    local total_gb=$((total_mb / 1024))
-    local total_display
-    if [ $total_gb -gt 0 ]; then
-        local gb_decimal=$(((total_mb % 1024) * 10 / 1024))
+    total_mb=$((total_size_kb / 1024))
+    total_gb=$((total_mb / 1024))
+    if [ "$total_gb" -gt 0 ] 2>/dev/null; then
+        gb_decimal=$(((total_mb % 1024) * 10 / 1024))
         total_display="${total_gb}.${gb_decimal} GB"
     else
         total_display="${total_mb} MB"
@@ -825,7 +823,7 @@ if [ -s "$CLEANABLE_TEMP" ]; then
     echo -e "${BOLD}${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     echo ""
 
-    local dev_details="• JavaScript/TypeScript: node_modules, dist, build, .next, .turbo
+    dev_details="• JavaScript/TypeScript: node_modules, dist, build, .next, .turbo
 • Python: __pycache__, .venv, venv, .pytest_cache, *.pyc
 • Go: vendor folders
 • Build caches: .vite, .parcel, .webpack, etc.
@@ -845,6 +843,278 @@ else
     echo -e "${CYAN}─────────────────────────────────────────────────────────────────${NC}"
     echo -e "${GREEN}  ✓ No development artifacts found to clean${NC}"
     rm -f "$CLEANABLE_TEMP" 2>/dev/null
+fi
+
+# ────────────────────────────────
+# System Cleanup
+# ────────────────────────────────
+
+system_details="• System logs older than 30 days
+• Temporary files in /tmp
+• Temporary files in /var/tmp"
+
+if ask_category_confirmation "System Files" "Remove old system logs and temporary files" "$system_details"; then
+    echo ""
+    echo -e "${BOLD}${CYAN}╔════════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${BOLD}${CYAN}║                                                                ║${NC}"
+    echo -e "${BOLD}${MAGENTA}║                     ⚙️  SYSTEM CLEANUP                         ║${NC}"
+    echo -e "${BOLD}${CYAN}║                                                                ║${NC}"
+    echo -e "${BOLD}${CYAN}╚════════════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+
+    echo -e "${BOLD}${YELLOW}📝 System Logs${NC}"
+    echo -e "${CYAN}─────────────────────────────────────────────────────────────────${NC}"
+    if [ "$SUDO_MODE" = "true" ]; then
+        clean_old_files "/var/log" 30 "Logs (>30 days)" true
+    else
+        echo -e "${YELLOW}  ⚠️  System logs require sudo privileges${NC}"
+    fi
+
+    echo ""
+    echo -e "${BOLD}${YELLOW}⏱️  Temporary Files${NC}"
+    echo -e "${CYAN}─────────────────────────────────────────────────────────────────${NC}"
+    if [ "$SUDO_MODE" = "true" ]; then
+        clean_dir "/tmp" "Temporary Files" true true
+        clean_dir "/var/tmp" "Temporary Files (var)" true true
+    else
+        clean_dir "/tmp" "Temporary Files" false true
+        echo -e "${YELLOW}  ⚠️  /var/tmp requires sudo privileges${NC}"
+    fi
+fi
+
+# ────────────────────────────────
+# Development Tools Cleanup
+# ────────────────────────────────
+
+tool_caches=""
+has_tools=false
+
+if command -v npm &> /dev/null; then
+    tool_caches="${tool_caches}• npm cache\n"
+    has_tools=true
+fi
+
+if command -v pip &> /dev/null || command -v pip3 &> /dev/null; then
+    tool_caches="${tool_caches}• pip cache\n"
+    has_tools=true
+fi
+
+if command -v brew &> /dev/null; then
+    tool_caches="${tool_caches}• Homebrew cache\n"
+    has_tools=true
+fi
+
+if [ "$has_tools" = "true" ]; then
+    if ask_category_confirmation "Development Tool Caches" "Clear package manager and development tool caches" "$tool_caches"; then
+        echo ""
+        echo -e "${BOLD}${CYAN}╔════════════════════════════════════════════════════════════════╗${NC}"
+        echo -e "${BOLD}${CYAN}║                                                                ║${NC}"
+        echo -e "${BOLD}${MAGENTA}║                 🛠️  DEVELOPMENT TOOLS                          ║${NC}"
+        echo -e "${BOLD}${CYAN}║                                                                ║${NC}"
+        echo -e "${BOLD}${CYAN}╚════════════════════════════════════════════════════════════════╝${NC}"
+        echo ""
+
+        # npm
+        if command -v npm &> /dev/null; then
+            echo -e "${BOLD}${YELLOW}📦 npm${NC}"
+            echo -e "${CYAN}─────────────────────────────────────────────────────────────────${NC}"
+            npm cache clean --force 2>/dev/null || true
+            echo -e "${GREEN}  ✓ npm cache cleaned${NC}"
+            echo ""
+        fi
+
+        # pip
+        if command -v pip &> /dev/null; then
+            echo -e "${BOLD}${YELLOW}🐍 pip${NC}"
+            echo -e "${CYAN}─────────────────────────────────────────────────────────────────${NC}"
+            pip cache purge 2>/dev/null || true
+            echo -e "${GREEN}  ✓ pip cache cleaned${NC}"
+            echo ""
+        elif command -v pip3 &> /dev/null; then
+            echo -e "${BOLD}${YELLOW}🐍 pip3${NC}"
+            echo -e "${CYAN}─────────────────────────────────────────────────────────────────${NC}"
+            pip3 cache purge 2>/dev/null || true
+            echo -e "${GREEN}  ✓ pip3 cache cleaned${NC}"
+            echo ""
+        fi
+
+        # Homebrew
+        if command -v brew &> /dev/null; then
+            echo -e "${BOLD}${YELLOW}🍺 Homebrew${NC}"
+            echo -e "${CYAN}─────────────────────────────────────────────────────────────────${NC}"
+            brew cleanup --prune=all 2>/dev/null || true
+            echo -e "${GREEN}  ✓ Homebrew cache cleaned${NC}"
+            echo ""
+        fi
+    fi
+fi
+
+# ────────────────────────────────
+# Docker Cleanup
+# ────────────────────────────────
+
+# Helper function to run command with timeout if available, otherwise without
+run_with_timeout() {
+    local timeout_seconds=$1
+    shift
+    if command -v timeout &> /dev/null || command -v gtimeout &> /dev/null; then
+        # Use timeout if available (try gtimeout first for macOS with Homebrew coreutils)
+        if command -v gtimeout &> /dev/null; then
+            gtimeout "$timeout_seconds" "$@" 2>/dev/null
+        else
+            timeout "$timeout_seconds" "$@" 2>/dev/null
+        fi
+    else
+        # No timeout available, run directly
+        "$@" 2>/dev/null
+    fi
+}
+
+if command -v docker &> /dev/null; then
+    # Check if Docker daemon is actually running
+    # Try docker info first (more reliable than timeout)
+    if docker info &>/dev/null 2>&1; then
+        # Get Docker system info before cleanup
+        docker_info_before=$(run_with_timeout 5 docker system df || echo "")
+
+        # Count Docker resources
+        containers_count=$(docker ps -aq 2>/dev/null | wc -l | tr -d ' ')
+        images_count=$(docker images -aq 2>/dev/null | wc -l | tr -d ' ')
+        volumes_count=$(docker volume ls -q 2>/dev/null | wc -l | tr -d ' ')
+        networks_count=$(docker network ls -q 2>/dev/null | grep -v bridge | grep -v host | grep -v none | wc -l | tr -d ' ')
+
+        docker_details=""
+        if [ "$containers_count" -gt 0 ] 2>/dev/null; then
+            docker_details="${docker_details}• Containers: $containers_count (will be stopped and removed)\n"
+        fi
+        if [ "$images_count" -gt 0 ] 2>/dev/null; then
+            docker_details="${docker_details}• Images: $images_count\n"
+        fi
+        if [ "$volumes_count" -gt 0 ] 2>/dev/null; then
+            docker_details="${docker_details}• Volumes: $volumes_count\n"
+        fi
+        if [ "$networks_count" -gt 0 ] 2>/dev/null; then
+            docker_details="${docker_details}• Networks: $networks_count\n"
+        fi
+
+        if [ -n "$docker_details" ]; then
+            docker_details="${docker_details}⚠️  WARNING: This will stop ALL running containers!"
+
+            if ask_category_confirmation "Docker" "Remove all Docker containers, images, volumes, and networks" "$docker_details"; then
+                echo ""
+                echo -e "${BOLD}${CYAN}╔════════════════════════════════════════════════════════════════╗${NC}"
+                echo -e "${BOLD}${CYAN}║                                                                ║${NC}"
+                echo -e "${BOLD}${MAGENTA}║                         🐳 DOCKER                              ║${NC}"
+                echo -e "${BOLD}${CYAN}║                                                                ║${NC}"
+                echo -e "${BOLD}${CYAN}╚════════════════════════════════════════════════════════════════╝${NC}"
+                echo ""
+
+                echo -e "${BLUE}  🔍 Checking Docker status...${NC}"
+                echo -e "${GREEN}  ✓ Docker is running${NC}"
+                echo ""
+
+                # Show space used before
+                echo -e "${BLUE}  📊 Space used before:${NC}"
+                echo "$docker_info_before" | tail -n +2 | while IFS= read -r line; do
+                    echo "     $line"
+                done
+                echo ""
+
+                # Stop and remove everything with timeouts
+                echo -e "${BLUE}  🛑 Stopping containers...${NC}"
+                run_with_timeout 30 docker stop $(docker ps -aq 2>/dev/null) || true
+
+                echo -e "${BLUE}  🗑️  Removing containers...${NC}"
+                run_with_timeout 30 docker rm -f $(docker ps -aq 2>/dev/null) || true
+
+                echo -e "${BLUE}  📦 Removing images...${NC}"
+                run_with_timeout 60 docker rmi -f $(docker images -aq 2>/dev/null) || true
+
+                echo -e "${BLUE}  💾 Removing volumes...${NC}"
+                run_with_timeout 30 docker volume rm $(docker volume ls -q 2>/dev/null) || true
+
+                echo -e "${BLUE}  🔗 Removing networks...${NC}"
+                run_with_timeout 10 docker network prune -f || true
+
+                echo -e "${BLUE}  🧹 Final cleanup...${NC}"
+                run_with_timeout 60 docker system prune -a --volumes -f || true
+
+                echo ""
+                echo -e "${GREEN}  ✓ Docker completely cleaned!${NC}"
+
+                # Show space used after
+                echo ""
+                echo -e "${BLUE}  📊 Space used after:${NC}"
+                run_with_timeout 5 docker system df | tail -n +2 | while IFS= read -r line; do
+                    echo "     $line"
+                done
+            fi
+        else
+            echo ""
+            echo -e "${BOLD}${CYAN}╔════════════════════════════════════════════════════════════════╗${NC}"
+            echo -e "${BOLD}${CYAN}║                                                                ║${NC}"
+            echo -e "${BOLD}${MAGENTA}║                         🐳 DOCKER                              ║${NC}"
+            echo -e "${BOLD}${CYAN}║                                                                ║${NC}"
+            echo -e "${BOLD}${CYAN}╚════════════════════════════════════════════════════════════════╝${NC}"
+            echo ""
+            echo -e "${GREEN}  ✓ Docker is already clean (no resources to remove)${NC}"
+        fi
+    else
+        echo ""
+        echo -e "${BOLD}${CYAN}╔════════════════════════════════════════════════════════════════╗${NC}"
+        echo -e "${BOLD}${CYAN}║                                                                ║${NC}"
+        echo -e "${BOLD}${MAGENTA}║                         🐳 DOCKER                              ║${NC}"
+        echo -e "${BOLD}${CYAN}║                                                                ║${NC}"
+        echo -e "${BOLD}${CYAN}╚════════════════════════════════════════════════════════════════╝${NC}"
+        echo ""
+        echo -e "${YELLOW}  ⚠️  Docker is not running - skipping Docker cleanup${NC}"
+        echo -e "${CYAN}     Start Docker daemon if you want to clean Docker data${NC}"
+    fi
+fi
+
+# ────────────────────────────────
+# Xcode Cleanup (macOS only)
+# ────────────────────────────────
+
+if [ -d "$HOME/Library/Developer/Xcode" ]; then
+    xcode_details="• Xcode DerivedData
+• Xcode Archives (old)
+• Xcode Device Support (old)
+• Xcode Caches
+⚠️  WARNING: This may require re-indexing projects in Xcode!"
+
+    if ask_category_confirmation "Xcode" "Remove Xcode build artifacts and caches" "$xcode_details"; then
+        echo ""
+        echo -e "${BOLD}${CYAN}╔════════════════════════════════════════════════════════════════╗${NC}"
+        echo -e "${BOLD}${CYAN}║                                                                ║${NC}"
+        echo -e "${BOLD}${MAGENTA}║                         📱 XCODE                              ║${NC}"
+        echo -e "${BOLD}${CYAN}║                                                                ║${NC}"
+        echo -e "${BOLD}${CYAN}╚════════════════════════════════════════════════════════════════╝${NC}"
+        echo ""
+
+        # DerivedData
+        if [ -d "$HOME/Library/Developer/Xcode/DerivedData" ]; then
+            echo -e "${BOLD}${YELLOW}📦 DerivedData${NC}"
+            echo -e "${CYAN}─────────────────────────────────────────────────────────────────${NC}"
+            clean_dir "$HOME/Library/Developer/Xcode/DerivedData" "Xcode DerivedData" false false
+        fi
+
+        # Archives (keep only last 30 days)
+        if [ -d "$HOME/Library/Developer/Xcode/Archives" ]; then
+            echo ""
+            echo -e "${BOLD}${YELLOW}📦 Archives (old)${NC}"
+            echo -e "${CYAN}─────────────────────────────────────────────────────────────────${NC}"
+            clean_old_files "$HOME/Library/Developer/Xcode/Archives" 30 "Xcode Archives (>30 days)" false
+        fi
+
+        # Device Support (old)
+        if [ -d "$HOME/Library/Developer/Xcode/iOS DeviceSupport" ]; then
+            echo ""
+            echo -e "${BOLD}${YELLOW}📱 Device Support (old)${NC}"
+            echo -e "${CYAN}─────────────────────────────────────────────────────────────────${NC}"
+            clean_old_files "$HOME/Library/Developer/Xcode/iOS DeviceSupport" 90 "Device Support (>90 days)" false
+        fi
+    fi
 fi
 
 # ────────────────────────────────

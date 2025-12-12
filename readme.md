@@ -89,7 +89,7 @@ sudo ./clean_space.sh
 ### 🌟 Features
 
 **📊 Space Analysis (`analyze_space.sh`)**
-- Interactive configuration: choose how many items to analyze (10-500, default: 50)
+- Interactive configuration: choose how many items to analyze (10-500, default: 10)
 - Top largest folders and files in your system
 - Per-user breakdown (home directory, caches, trash, logs, Xcode data)
 - Development artifacts count (`node_modules`, `.next`, `dist`, Python caches, etc.)
@@ -312,7 +312,7 @@ sudo ./clean_space.sh
 ### 🌟 Funcionalidades
 
 **📊 Análise de Espaço (`analyze_space.sh`)**
-- Configuração interativa: escolha quantos itens analisar (10-500, padrão: 50)
+- Configuração interativa: escolha quantos itens analisar (10-500, padrão: 10)
 - Top maiores pastas e arquivos do sistema
 - Análise por usuário (diretório home, caches, lixeira, logs, dados do Xcode)
 - Contagem de artefatos de desenvolvimento (`node_modules`, `.next`, `dist`, caches Python, etc.)

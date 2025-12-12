@@ -77,7 +77,7 @@ echo ""
 # ────────────────────────────────
 
 # Default number of items to analyze
-DEFAULT_ITEMS=50
+DEFAULT_ITEMS=10
 
 # Ask user for number of items
 echo -e "${BOLD}${CYAN}═══════════════════════════════════════════════════════════════${NC}"
@@ -173,10 +173,12 @@ show_progress() {
     local i=0
     local percent=0
     local last_update=0
+    local start_time=$(date +%s)
 
     while kill -0 "$pid" 2>/dev/null; do
         i=$(((i + 1) % 10))
         current_time=$(date +%s)
+        elapsed=$((current_time - start_time))
 
         # Increment percentage based on elapsed time
         if [ $percent -lt 85 ]; then
@@ -196,7 +198,12 @@ show_progress() {
             percent=95
         fi
 
-        printf "\r${BLUE}${message}${NC} ${CYAN}[${spinner:$i:1}]${NC} ${YELLOW}${percent}%%${NC}" >&2
+        # Show elapsed time for longer operations
+        if [ $elapsed -gt 5 ]; then
+            printf "\r${BLUE}${message}${NC} ${CYAN}[${spinner:$i:1}]${NC} ${YELLOW}%d%%${NC} ${CYAN}(%ds)${NC}" "$percent" "$elapsed" >&2
+        else
+            printf "\r${BLUE}${message}${NC} ${CYAN}[${spinner:$i:1}]${NC} ${YELLOW}%d%%${NC}" "$percent" >&2
+        fi
         sleep 0.2
     done
 
@@ -297,17 +304,6 @@ fi
 # ────────────────────────────────
 # Cleanup Summary
 # ────────────────────────────────
-
-echo ""
-echo -e "${BOLD}${YELLOW}💡 Would you like to see what could be deleted?${NC}"
-echo ""
-read -p "Show cleanup opportunities? [Y/n]: " -n 1 -r
-echo ""
-
-if [[ $REPLY =~ ^[Nn]$ ]]; then
-    echo -e "${CYAN}Returning to main menu...${NC}"
-    exit 0
-fi
 
 echo ""
 echo -e "${BOLD}${CYAN}╔════════════════════════════════════════════════════════════════╗${NC}"
